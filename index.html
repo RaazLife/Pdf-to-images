@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>PDF to Images Converter</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f7f7f7;
+      margin: 0;
+      padding: 0;
+    }
+    .container {
+      max-width: 600px;
+      margin: 0 auto;
+      padding: 20px;
+      background-color: #fff;
+      border-radius: 5px;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+    h1 {
+      text-align: center;
+      color: #333;
+    }
+    p {
+      text-align: center;
+      color: #777;
+    }
+    input[type="file"] {
+      display: none;
+    }
+    .upload-btn {
+      display: inline-block;
+      padding: 10px 20px;
+      background-color: #007bff;
+      color: #fff;
+      text-decoration: none;
+      border-radius: 5px;
+      cursor: pointer;
+      transition: background-color 0.3s;
+    }
+    .upload-btn:hover {
+      background-color: #0056b3;
+    }
+    .image-preview {
+      margin-top: 20px;
+      text-align: center;
+    }
+    .image-preview a {
+      display: inline-block;
+      margin-top: 10px;
+      padding: 5px 10px;
+      background-color: #007bff;
+      color: #fff;
+      text-decoration: none;
+      border-radius: 5px;
+      cursor: pointer;
+      transition: background-color 0.3s;
+    }
+    .image-preview a:hover {
+      background-color: #0056b3;
+    }
+    .download-btn {
+      display: block;
+      margin: 20px auto;
+      padding: 10px 20px;
+      background-color: #28a745;
+      color: #fff;
+      text-decoration: none;
+      border-radius: 5px;
+      text-align: center;
+      cursor: pointer;
+      transition: background-color 0.3s;
+    }
+    .download-btn:hover {
+      background-color: #218838;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>PDF to Images Converter</h1>
+    <p>Select a PDF file and click "Convert to Images" to convert it into multiple images.</p>
+  
+    <label for="pdfUpload" class="upload-btn">Select PDF File</label>
+    <input type="file" id="pdfUpload" accept=".pdf">
+    
+    <div class="image-preview" id="imagePreview"></div>
+    
+    <a id="convertBtn" class="download-btn" disabled>Convert to Images</a>
+  </div>
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.11.338/pdf.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.5.0/jszip.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+  <script>
+    document.getElementById('pdfUpload').addEventListener('change', function(e) {
+      var file = e.target.files[0];
+      var reader = new FileReader();
+
+      reader.onload = function() {
+        var typedArray = new Uint8Array(this.result);
+        convertPDFtoImages(typedArray);
+      };
+
+      reader.readAsArrayBuffer(file);
+    });
+
+    function convertPDFtoImages(fileData) {
+      var loadingTask = pdfjsLib.getDocument(fileData);
+
+      loadingTask.promise.then(function(pdf) {
+        var numPages = pdf.numPages;
+        var imageContainer = document.getElementById('imagePreview');
+        imageContainer.innerHTML = '';
+
+        var promises = [];
+
+        for (var i = 1; i <= numPages; i++) {
+          promises.push(
+            pdf.getPage(i).then(function(page) {
+              var viewport = page.getViewport({ scale: 1 });
+              var canvas = document.createElement('canvas');
+              var context = canvas.getContext('2d');
+              canvas.height = viewport.height;
+              canvas.width = viewport.width;
+
+              var renderContext = {
+                canvasContext: context,
+                viewport: viewport
+              };
+
+              return page.render(renderContext).promise.then(function() {
+                return new Promise(function(resolve) {
+                  canvas.toBlob(function(blob) {
+                    var imageUrl = URL.createObjectURL(blob);
+                    var link = document.createElement('a');
+                    link.href = imageUrl;
+                    link.download = 'image_' + i + '.jpg';
+                    link.innerText = 'Download Image ' + i;
+                    imageContainer.appendChild(link);
+                    resolve(blob);
+                  }, 'image/jpeg', 1);
+                });
+              });
+            })
+          );
+        }
+
+        Promise.all(promises).then(function(blobs) {
+          var zip = new JSZip();
+
+          blobs.forEach(function(blob, index) {
+            var imageName = 'image_' + (index + 1) + '.jpg';
+            zip.file(imageName, blob);
+          });
+
+          zip.generateAsync({ type: 'blob' }).then(function(content) {
+            saveAs(content, 'converted-images.zip');
+          });
+        });
+
+        var convertBtn = document.getElementById('convertBtn');
+        convertBtn.removeAttribute('disabled');
+      });
+    }
+  </script>
+</body>
+</html>
